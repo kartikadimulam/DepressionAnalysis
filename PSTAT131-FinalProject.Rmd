@@ -1,0 +1,675 @@
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Understanding Student Depression
+
+## Kartik Adimulam
+## Spring 2025 PSTAT 131
+
+# Introduction
+
+- Without bursting anybody's optimistic bubble about today's world, I hope that we can agree from a place of love and concern for our fellow neighbor that more people around us today are fighting mental issues than ever. The phenomenon itself continues to be widespread while simultaneously intensifying into an incredibly severe condition for some. The cause of this cancerous trend itself might be a question for another time, but I believe it would be ignorant to act as if this isn't a trend at all. We hear concerning statistics about the current generations of middle and young adults, and even more concerning statistics about the next generation of children. We see people nowadays often synthesizing a massive myriad of different possibilities for why this might be the case. News reporters, sociological analysts, scientists, researchers, and parents commonly note factors such as isolationism, social media, economic factors, purpose, meaning, and stress as being the culprits in our brutally honest analysis of contemporary society. However, oftentimes these conversations lack a foundation in truth and hard science. We spend too much time guessing about what combination of societal factors is causing the suffering of so many hurting people. However, in the data science world we are blessed with the tools to ask and answer questions with clarity using a valuable resource. Throughout this analysis and in the subsequent pages, I attempt a humble exploration of depression as I yearn to bring some hope, light, and clarity to this difficult topic using Machine Learning capabilities. 
+
+![''](depression1.jpg)
+
+I will focus my analysis on students specifically. This is partly due to the fact that I view this as the most relevant group at hand being a university student myself. I hear far too many stories of my beloved classmates struggling to find purpose, joy, peace, and a reason to wake up excited every morning to move along with their studies. I was lucky enough to find a great data set on Kaggle that is quite clean already and simple to work with. My data set choice for this project is a student depression data set that I will use to analyze, understand, and predict student depression based on an array of life factors. I hope to understand the relationship between the features in this data set and the prevalence of depression among students.Therefore, this will be a binary classification project. Using my understanding of these covariates, maybe I will soon be able to engage in productive discussions with my peers so that we can aid each other in our search for peace, identifying the factors of life that could be leading us into this pit of destruction. 
+
+## Dataset Description
+
+I have taken the data for this analysis from Kaggle's online data base of publicly available data sets. The great part about Kaggle data is that it is usually already fairly clean and easy to work with. Later, we will do analysis on how much missing data there is present in our data, but I anticipate that it will not be a huge issue for us. An important factor to note about this data set is that it was collected from students in India. This could be detrimental in an analysis that hopes to extrapolate these findings to students in the United States, but I believe that our analysis itself is fundamentally aiming to understand the relationships that all human beings have with their various lifestyle factors. It is unreasonable, for example, to assume that dietary habits will greatly affect people differently around the world. Unhealthy eating or unhealthy sleeping will likely affect someone negatively in respect to their mental health regardless of which area in the world they are in. That being said, it is still important to note that our data set is not derived from our usual scope of reference when we imagine people in our lives that are struggling with depression. We are dealing with a completely different demographic of people. 
+
+Here is a link to my dataset:
+[Student Depression Data](https://www.kaggle.com/datasets/hopesb/student-depression-dataset/data)
+
+The features that are included in this data set that will be used for prediction include:
+-demographic information (age, gender, city)
+-academic information (GPA, academic pressure, degree type) 
+-life habits information (sleep Duration, dietary habits, work/study hours). 
+
+Our data set also includes a column that indicates depression prevalence using a binary classifier (0/1). This is the classification task that we are undertaking, to accurately predict this binary classifier.
+
+This data set is obtained from Kaggle's public collection of data sets (hyperlinked above) and is quite large, including 18 column variables and 27901 observations. 
+
+Each row observation represents and individual student and each column represents information regarding that student. 
+
+Our columns (features) include: 
+-`ID` (unique identifier for each student) \
+-`Age`, Gender (Male/Female) \
+-`City` (geographic location) \
+-`CGPA` (Grade Point Average)\
+-`Sleep Duration` (daily average)\
+-`Profession` (possible employment while enrolled in school)\
+-`Work Pressure` (0-5 scale if employed)\
+-`Academic Pressure` (0-5 scale)\
+-`Study Satisfaction` (0-5 scale)\
+-`Job Satisfaction` (0-5 scale if employed)\
+-`Dietary Habits` (unhealthy/moderate/healthy)\
+-`Degree Type` (28 specific degrees ranging from Grade 12 to PHD)\
+`Suicidal Thought Prevalence` (yes/no)\
+`Work/Study hours` (total combined hours spent on work or studying per day)\
+`Financial Stress Level (0-5 scale)`\
+`Historical Family Mental Illness Prevalence`  (yes/no).\
+
+## Motivation
+
+There is potential in this analysis to even generate better mental health outcomes for affected individuals if we can accurately understand which combination of lifestyle/health/academic factors causes an individual to be "high risk" for depression. If a patient walks into a mental health treatment center, for example, and seems to have the combination of these factors that is "high risk", they can be advised to change academic, work, or lifestyle habits to aid the curing of their illness. I believe that this type of analysis can be truly useful to the mental health community at large, which is suffering from alarming rates of mental health illnesses in our contemporary world. However, that is another analysis to be dealt with. Today, our main goal is to understand the various factors in a human's life that causes them to be more prone towards depression. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(tidymodels)
+library(ISLR)
+library(ISLR2)
+library(tidyverse)
+library(tidymodels)
+library(glmnet)
+library(modeldata)
+library(kernlab)
+library(tidyclust)
+library(corrplot)
+library(ggthemes)
+library(janitor)
+library(naniar)
+library(patchwork)
+library(rpart.plot)
+library(xgboost)
+library(ggplot2)
+library(discrim)
+library(kknn)
+library(themis)
+library(forcats)
+library(ranger)
+library(vip)
+```
+
+```{r}
+Student_Depression_Dataset <- read.csv("~/Development/PSTAT131/Student Depression Dataset.csv")
+head(Student_Depression_Dataset)
+dim(Student_Depression_Dataset)
+```
+
+- This is a pretty huge data set with 27901 rows and 18 columns. We will need to first make sure that there are no missing observations throughout our model creation and if there are, we can either remove them or find some more creative ways to deal with the missing data using imputation or other advanced techniques.
+
+# Data Exploration & Tidying
+
+```{r}
+Depression = Student_Depression_Dataset
+vis_miss(Depression)
+Depression <- Depression[complete.cases(Depression), ]
+dim(Depression)
+```
+
+- We now have a data set with 27898 rows and 18 columns. The variable that we are interested in predicting in Depression Status, using our 14 predictors. We are interested in the question "How does each of these academic/lifestyle factors influence the prevalence of depression?". We are also interested in the question "What combination of these factors leads to a high likelihood of depression?" and "How accurately can we predict depression prevalence using these factors?". 
+Therefore, our question is one that includes both prediction and inference. We will need to use a model that is interpretable and not just flexible, or a "black box". 
+
+- The predictors that I think will be most useful are Work/Study Hours, Academic Pressure, Sleep Duration, Dietary Habits, and Financial Stress. I conclude this from my previous yet limited understanding of mental health, which can be largely influenced by overwork, stress, lack of sleep, and poor eating. The mental factors that I have just listed are indicated by the features in our data set, even though it may not be clear at first glance. For example, a large amount of work/study hours or academic pressure can be an indication of overwork. Overwork is a known contributing factor to stress, which can contribute to depression onset. Our model does not aim to be descriptive, since we are not interested in the general trends of depression, stress, overwork, etc. We are most interested in the relationship between these variables and depression and our ability to accurately predict this. 
+
+- We will use the clean_names() function from the janitor package to make our column names more standardized and resemble what we are used to working with. We have multiple column names in our original data set that are out of the ordinary and difficult to remember throughout our analysis. Using clean_names, we can turn periods in column names into underscores and make all the names lowercase. 
+
+- We hope to conduct statistical inference and prediction of student depression using a useful subset of these indicators. I will discard the ID column and the Suicidal Thought Prevalence column in my analysis. It does not seem incredibly useful to use prevalence of suicidal thoughts to predict depression prevalence, as these two variables are likely highly correlated. Instead, we are interested in understanding lesser known relationships between these predictor variables and depression. I will also discard the city variable, since it is not useful for our research questions. Finally, I will also not use the profession variable in my analysis, since the focus of our analysis is on student depression. Let us also turn all of our categorical variables into factors so that they can be used appropriately in our future models.
+
+```{r}
+Depression = Depression %>% clean_names()
+Depression = Depression %>% select(-id, -have_you_ever_had_suicidal_thoughts, -city, -profession)
+
+Depression$degree = factor(Depression$degree)
+Depression$gender = factor(Depression$gender)
+Depression$academic_pressure = factor(Depression$academic_pressure)
+Depression$work_pressure = factor(Depression$work_pressure)
+Depression$study_satisfaction = factor(Depression$study_satisfaction)
+Depression$job_satisfaction = factor(Depression$job_satisfaction)
+Depression$sleep_duration = factor(Depression$sleep_duration)
+Depression$dietary_habits = factor(Depression$dietary_habits)
+Depression$financial_stress = factor(Depression$financial_stress)
+Depression$depression = factor(Depression$depression)
+
+Depression %>% ggplot(aes(x=depression, fill=depression)) + geom_bar() + labs(x='Depression Indication', title='Overall Distribution of Depression') 
+```
+
+- We can see here that there is not a huge class imbalance between the two indicators that represent depression or no depression. However, since we are dealing with such a large data set with over 27000 observations, it wouldn't be completely unreasonable to perform some type of upsampling/downsampling to account for the difference in about 5000 observations. There are 5000 more individuals in the data set that have depression than don't. 
+
+- However, I want to get the exact proportions just to make sure I understand how large this difference is. In a data set of 27000+ observations, a small difference graphically in reality could be huge.
+
+```{r}
+Depression %>%
+  group_by(depression)%>%
+  summarise(prop=n()/dim(Depression)[1])
+```
+
+- The imbalance is not as alarming as I thought it might be. It shouldn't pose a huge problem for us as we move forward in our analysis. Upsampling or downsampling will not be necessary. 
+
+# EDA
+
+- We will start our Exploratory Data Analysis (EDA) by observing the distribution of depression with respect to gender. In my previous prediction of which variables I thought might be important from my elementary understandings of Psychology and Sociology, I did not mention gender as a potentially important predictor. However, I do think it is important, if you are dealing with observations that represent human beings, to first start with an understanding of gender differences. The emotional tendencies of men and women can differ greatly, especially during a time like college. Using our preliminary understanding of depression distribution across generation, we can more easily interpret future findings in our more in-depth analysis of other covariates.
+
+```{r}
+ggplot(Depression, aes(x=gender, fill=depression)) + geom_bar(position='fill') + 
+  scale_y_continuous(labels=scales::percent)
+```
+
+- We see what appears to be an almost exactly equal distribution of depression indication across male and female subjects. Therefore, in our future analysis I think it gender will likely be left out of the discussion of this analysis. It does not seem to have any effect at all in this particular data set. Our focus thereafter will be towards our other predictors. 
+
+- To continue our EDA, we will visually analyze the 4 categorical predictors that we previously guessed would have the most profound impact on depression (Academic Pressure, Financial Stress, Dietary Habits, and Sleep Duration) as well as the 1 numerical predictor (work & study hours). These are commonly known factors in contemporary Psychology that can have severe influences on mental health if not attended to correctly. Therefore, they may prove to be important in our initial exploratory analysis. 
+
+```{r}
+ggplot(Depression, aes(x=depression, fill=academic_pressure)) + geom_bar(position='fill') + 
+  scale_y_continuous(labels=scales::percent)
+```
+
+- It appears that academic pressure will likely be a strong indicator of depression in this analysis. We can observe that in the category of students that have depression, there is a much larger percent of them that are classified with academic pressure = 5 when compared with the category of students that don't have depresion. We can say the same amount the percent of depressed students that have academic pressure = 4. On a similar note, we can consequently observe too that in the non-depressed class of students, there is a large proportion of them that are classified with academic pressure = 1. 
+
+- This is an intuitive finding in our analysis, since the data set itself is a student depression data set, in which all individuals have their primary occupation in life as a university student. Therefore, it makes sense that likely their primary stressor in life would be academics which has a clear impact on incidences of depression among these students. 
+
+```{r}
+ggplot(Depression, aes(x=depression, fill=financial_stress)) + geom_bar(position='fill') + 
+  scale_y_continuous(labels=scales::percent)
+```
+
+- We see also that financial stress appears to be a strong indicator of depression incidence as well. Among the category of students that are depressed, there is a much larger proportion of individuals that have financial stress = 5 or financial stress = 4 than the non-depressed students. We also observe that there is a much larger percent of non-depressed students that have financial_stress = 1 or financial stress = 2 than the depressed students. 
+
+- This is another intuitive finding that we suspected in our initial observation of the feature variables in this data set. Financial stress is likely to be the other largest cause of mental difficulty among university students that are generally characterized as being "broke". Financial stress is likely the most important secondary stressor after academic stress in students, causing it to have a noticeable impact on depression incidence. It is also likely that these two factors are correlated, but we will observe that more closely later. 
+
+```{r}
+ggplot(Depression, aes(x=depression, fill=sleep_duration)) + geom_bar(position='fill') + 
+  scale_y_continuous(labels=scales::percent)
+```
+
+- It does not seem here that sleep duration differs greatly among the depressed students versus the non-depressed students. However, we do see a slightly larger proportion of non-depressed students that sleep more than 8 hours than depressed students. This is to be expected, as we guess that sleep duration can reduce the possiblity of depression AND the prevalence of depression itself can negatively affect sleep habits. This isn't as large of a difference than the other feature variables that we just visualized. 
+
+```{r}
+ggplot(Depression, aes(x=depression, fill=dietary_habits)) + geom_bar(position='fill') + 
+  scale_y_continuous(labels=scales::percent)
+```
+
+- We observe here a major difference between the two classes of depressed or non-depressed students in respect to dietary habits. Almost double the proportion of students that have depression have unhealthy dietary habits compared to the students that do not have depression. Again, this is an intuitive finding that we expect, as food habits are commonly known to have an important influence on mental health stability. Dietary habits also likely have a similar effect on students than sleep in the sense that poor habits can increase the chances of getting depression AND depression itself than negatively affect dietary habits. We see a large difference between the two categories of students here. I would guess that dietary habits will be an important feature variable in our analysis. 
+
+
+```{r}
+ggplot(Depression, aes(x=depression, y=work_study_hours, fill=depression)) + geom_boxplot() 
+```
+
+- We finally conclude our EDA by analyzing how work and study hours influences the prevalence of depression among these students. We can clearly see here than students that are depressed seem to have significantly more work study hours than students that are not. Non-depressed students seem to be mostly working and studying in the range of 3-10 hours while depressed students seem to be mostly working and studying in the range of 6-11 hours. This is another intuitive finding, as overwork from school or a job is known to be a common cause of depression.
+
+## Data Splitting & K-Fold CV
+
+- Now we will proceed with our analysis by splitting our data and creating folds for future cross-validation of our models. We will need to first set our seed to that our random split can be exactly reproduced everytime we run out future models. I will use a proportional split of 0.77, using 77% of my overall data set for training data and 23% for testing data. I am partly using this specific number because 77 is my favorite number, but also because we can afford to have a slightly smaller testing set proportion with such a large amount of overall observations. This should strike a good balance between having enough training data while avoiding an overfitting of our training data.  
+
+- In additional, for the purposes of cross-validation I will create 5 folds from my training data. The reason that I am not using more than 5 folds is because our data set is quite large and I do not want our more complex models such as the Random Forest to be running forever. 5 folds is still generally sufficient to gain a good understanding of our model's performance using cross-validation.
+
+- As always, I will stratify on my outcome variable so that the distribution of 1's and 0's for the depression indicator will be the same in my original data set as well as my training/testing data splits. 
+
+```{r}
+set.seed(5403)
+
+depression_split = initial_split(Depression, prop=0.77, strata='depression')
+depression_train = training(depression_split)
+depression_test = testing(depression_split)
+
+dim(depression_train)
+dim(depression_test)
+```
+
+- We appear to have the appropriate amount of observations in both our training and testing data sets. We are ready to move forward with our analysis and create folds from our training data set. We will again stratify on the depression outcome variable in our creation of folds so that we have a similar distribution of the outcome variable in each fold compared to our original data. If there is not an equal number, our model can bias towards a certain prediction to increase accuracy. Without stratified sampling, we can also have highly variable test metrics, as some folds might have a very different class distribution than others. These folds will be used for the purposes of K-fold Cross-Validation once I initialize my models.
+
+```{r}
+depression_folds = vfold_cv(depression_train, v=5, strata='depression' )
+```
+
+- We will use a correlation plot for our numeric covariates to observe if there are any highly correlated predictors. This can be a potential issue in our analysis if two variables are closely correlated since it can introduce multicollinearity into our analysis. This can create unstable coefficient estimates for certain models and contribute to overfitting. Since our data set has mostly categorical predictors, our correlation plot here will not be as complex as the plots that we have constructed throughout our coursework. This is simply due to the nature of the dataset that we have on hand here. This particular data from kaggle used primarily factor variables to measure the important metrics. We have numerous 0-5 scales as our predictor variables. Therefore, even if we find that there are close correlations between these few numeric variables that force us to remove any, we will still have plenty of predictors left to conduct our subsequent analysis.
+
+```{r}
+depression_train %>% select(cgpa, age, work_study_hours) %>%
+  cor() %>%
+  corrplot(type='lower', diag=FALSE)
+```
+
+- We do not see any correlations among our predictors so we can proceed with our analysis without worrying about overfitting or instability. We will include all 3 of these predictors in our analysis. 
+
+## Recipe Creation
+
+- We will now build our recipe that combines the predictor variables that we believe could be significant in this analysis and the depression outcome variable. Creating a recipe basically gives a blueprint for what type of process we want our model to be running. It is similar to an actual cooking recipe, where we provide an expert with a list of ingredients and amounts, so that they can be better guided in the process of creating something beautiful out of the foundational pieces. In this context, a recipe is a similar process of giving an outline of what we will be using to achieve our predictive and inferential capabilities. We must outline the predictors, interactions, and outcome that we desire to predict. We have already done the work previously of removing those columns that we don't think will be important in our analysis. Therefore, we will be proceeding by using 14 out of our 15 remaining columns in the training set as predictor variables and the 15th column, of course, and the outcome variable. In addition, we will need to create dummy variables for the categorical predictors that we are using, as well as normalizing all of our predictors. It is important to center and scale our numeric predictors since the Machine Learning algorithms that we are about to use to make predictions can be very sensitive to the scale of the input features. Without normalization, features with a large scale could dominate the predictions. 
+
+- Another function that we will introduce here to prevent future issues in our recipe creation is step_zv(). This function will remove dummy variables that have zero variance, or contain only a single value. This type of variable would be useless in an analysis that uses covariates that vary across rows to understand relationships. It can also prove problematic when running our models later on. 
+
+```{r}
+depression_recipe = recipe(depression ~ ., data = depression_train) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_zv(all_predictors()) %>%
+  step_center(all_numeric_predictors()) %>%
+  step_scale(all_numeric_predictors())
+
+prep(depression_recipe) %>% bake(new_data = depression_train)
+```
+
+- We see a major issue above. There are 59 predictor variables in our data set due to all of the dummy variable prediction. Since our goal is to make an interpretable model, this will not be sufficient for our analysis. It seems that our main culprit here is the 'Degree' variable, which has 28 levels. This creates a dummy variable for each different type of degree. We will remedy this by grouping our degree variable into categories. We will group them into Bachelor's Degrees, Master's Degrees, and Other. This will help us simplify our model while still performing some analysis on how degree type affects the risk of depression. It is also possible to get rid of the degree variable overall, but I believe it will have an important effect on the differences in depression prevalence across students. 
+
+```{r}
+depression_train %>%
+  ggplot(aes(y=forcats::fct_infreq(degree)))+
+  geom_bar()
+```
+
+- The large majority of our students are in Class 12, or 12th Grade. Therefore, the grouping should be quite simple and leave us with an equal amount of students in each category. The first category will be Class 12/Other, the second will be Bachelor's Degrees, and the third one will be Master's Degrees or greater. We will need to restructure our entire data set and then perform the splits into training and testing data again to achieve this.
+
+```{r}
+set.seed(5403)
+
+Depression = Depression %>%
+  mutate(degree_type = forcats::fct_collapse(degree,
+                                             class12_other = c('Class 12', 'Others'),
+                                             bachelors = c('B.Ed', 'B.Com', 'BCA', 'B.Tech',
+                                                           'BHM', 'BSc', 'B.Pharm', 'BBA', 'LLB',
+                                                           'BA','BE', 'B.Arch'),
+                                             graduate=c('MSc', 'MCA', 'M.Tech', 'M.Ed',
+                                                        'M.Com','MBBS','M.Pharm','MD','MBA',
+                                                        'MA','PhD','MA','LLM','MHM','ME')))
+
+depression_split = initial_split(Depression, prop=0.77, strata='depression')
+depression_train = training(depression_split)
+depression_test = testing(depression_split)
+
+depression_folds = vfold_cv(depression_train, v=5, strata='depression' )
+```
+
+- We will confirm now that our factor recoding worked as we intended. 
+
+```{r}
+depression_train %>%
+  ggplot(aes(y=forcats::fct_infreq(degree_type))) + geom_bar()
+```
+
+- Great! Our mutation of the data set worked succesfully and we also have about an equal class distribution of this variable. This should help us greatly in our future analysis and prevent us from creating a model that is impossible to interpret. We will now have to redo our recipe creation with this new factor variable. We will remove the degree variable from this analysis so that we don't accidentally create the dummy variables now. Using the degree_type variable we can collapse the 24 original dummy variables down to just 2. 
+
+```{r}
+depression_recipe = recipe(depression ~ ., data = depression_train) %>%
+  step_rm(degree) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_zv(all_predictors()) %>%
+  step_corr() %>%
+  step_nzv() %>%
+  step_lincomb() %>%
+  step_center(all_numeric_predictors()) %>%
+  step_scale(all_numeric_predictors())
+
+prep(depression_recipe) %>% bake(new_data = depression_train)
+```
+
+- We now have 33 predictor variables in our recipe. This still seems like a lot, but we have cut the amount of dummy variables in half simply by grouping our degree variable into distinct categories. We can now move forward with actually implementing our ML models!
+
+## Model Creation
+
+- The models that I will use for this analysis must be able to handle a classification task. I will use a variety of models and then use cross validation techniques on my training set to decide which model has performed the best. The 6 models that I will employ for this analysis will be: Logistic Regression, Elastic Net Regression, Linear Discriminant Analysis, Gradient Boosted Trees, K-Nearest Neighbors, Support Vector Machines, and Random Forest. Out of these 7 models, we will use the top 2 on the testing set in order to determine if our models are able to actually make accurate predictions on the overall data set or if they simply learned the training set well enough to perform well on that data. This would be a case of overfitting, where our model does not actually learn important relationships in the overall data set, but memorizes the nature of the training set to achieve high accuracy in prediction. 
+
+- My Support Vector Machine will use a radial basis function kernel since we are dealing with a very high dimensional data set (28 predictors) that likely will not be able to be easily separated. We also don't have a very strong prior understanding of the shape of the decision boundary with so many predictors, so I think it is best to use a radial kernel that is highly flexible for different distributions of data points. 
+
+- The Random Forest and Gradient Boosted models will most likely take the longest to run and tune, so we will need to save the results a single time to a different file and then load it again to display properly in the final report. 
+
+### Assessing Performance
+
+!['AUC_ROC Score'](auc-roc.png)
+
+- To assess the performance of each model, I will use AUC-ROC score and accuracy. Out of these two metrics AUC-ROC will be our main criterion for performance and accuracy will be used to support any findings that we might have in our tuning process. AUC-ROC is the best metric to evaluate the performance of a binary classification task. It measures how well a model is able to maximize its True Positive Rate (correctly predicting an actual instance of depression) while limiting its False Positive Rate (falsely predicting depression for a non-depressed subject). AUC-ROC score, in this way, is more reliable than just accuracy since model accuracy can be maximized by simply guessing the more prevalent class more often. However, to achieve a high AUC-ROC score a model but be able to accurately sense when an individual is depressed while also minimizing the amount of instances where it guesses than someone is depressed when they are not. Therefore, we protect ourselves from biasing a model that is not actually doing anything impressive! We will use AUC-ROC scores to not only assess which of our 7 models is best to use on the testing set, but also to tune the hyperparameters for our more complicated models. The best AUC-ROC score that a model can achieve is 1, meaning that it correctly identifies every depressed individual as depressed, and does not predict a single non-depressed student incorrectly. The worst AUC-ROC score that a model can achieve is 0, meaning that it literally predicts every single data point incorrectly. This is quite unlikely to happen, so usually we think about 0.5 as being basically the worst a model can perform. A model with an AUC-ROC score of 0.5 is no better than a randomly guessing model. 
+
+- An important aspect of model creation in tuning hyperparameters. Hyperparameters are certain values that change how a model handles the data that it is given and makes predictions on that data. Some of our models, such as Logistic Regression and LDA (Linear Discriminant Analysis) do not require any hyperparameter tuning. The hyperparameters are crucial to making the age-old tradeoff in Statistics between bias and variance. We will use K-Fold Cross Validation and AUC-ROC/Accuracy to accurately train these hyperparameters. The following is an explanation of these hyperparameters and how they influence the bias/variance tradeoff
+
+### KNN
+
+- `neighbors` refers to the # of surrounding data points that the model will use to predict a new data point that it is given. Since we are dealing with a classification task in this analysis, our model will be taking a majority vote of the nearby data points. If neighbors = 10, for example, the model will observe the 10 closest data points from the training data set to the new data point that it is given, and take a majority vote of these points to make a classification. 
+
+### Elastic Net Regression
+
+- Since Elastic Net Regression is meant to be a mix of Lasso and Ridge regression, the first hyperparameter that must be tuned is `mixture`. This refers to the balance of Lasso and Ridge regression that is being employed by the Elastic Net. If `mixture` is 0, then it is a fully Ridge regression. If `mixture` is 1, then it is a fully Lasso regression. Anything in between is a mix of the two. The `penalty` hyperparameter is the second one that must be tuned. It refers to the penalty that is enforced on large coefficients and helps the model prevent overfitting to the data. Massive coefficients are heavily penalized, as they can be an indication that we have overfit our training data set. 
+
+### Random Forest 
+
+- `mtry` represents the number of predictors that will be randomly sampled for each split in each tree model. For each split within the trees we do not use all predictors in the original data set. This creates diversity among the splits and helps prevent overfitting.  
+- `trees` in the number of total decision trees in the forest. More trees stabilizes predictions and reduces variance, but takes longer to train. 
+- `min_n` is the lower bound of data points in a particular that that is required to split further. A high value for this parameter creates shallower trees but prevents possible overfitting. A small value may overfit the data.
+
+### Gradient Boosted Trees
+
+- `mtry` and `trees` are used identically to Random Forest in Gradient Boosted trees
+- `learn_rate`is a shrinkage parameter that controls the learning rate of the Boosted model. It represents how much each tree contributes to the overall model, since the Boosted approach is to continually update the decision tree by fixing the errors made by the previous version. `learn rate` essentially represents how big of a step to take at each iteration of this process. If we choose a high value for this hyperparameter, we could learn too quickly and overfit. However, if we choose too low of a value we could learn too slowly. 
+
+### SVM
+
+- `cost` controls the tradeoff in SVM between maximizing the decision boundary while minimizing the # of classification errors. It is a tuning parameter that represents the cost of predicting a sample within or on the wrong side of the margin that we create. If `cost` is too large we can risk overfitting our model, since we don't allow enough mistakes and are too strict with the decision boundary. If `cost` is too small we risk underfitting our model and we are too lenient with the decision boundary. 
+
+
+### Model Initialization
+
+```{r}
+
+log_reg = logistic_reg() %>% 
+  set_engine('glm') %>%
+  set_mode('classification')
+
+log_wf = workflow() %>%
+  add_model(log_reg) %>%
+  add_recipe(depression_recipe)
+
+lda = discrim_linear() %>%
+  set_mode('classification') %>%
+  set_engine('MASS')
+
+lda_wf = workflow() %>%
+  add_model(lda) %>%
+  add_recipe(depression_recipe)
+
+boosted = boost_tree(mtry = tune(),
+                     trees = tune(),
+                     learn_rate = tune()) %>%
+  set_engine('xgboost') %>%
+  set_mode('classification')
+
+boosted_wf = workflow() %>%
+  add_model(boosted) %>%
+  add_recipe(depression_recipe)
+
+elastic = logistic_reg(mixture=tune(),
+                     penalty=tune()) %>% set_mode('classification') %>% set_engine('glmnet')
+
+elastic_wf = workflow() %>%
+  add_model(elastic) %>%
+  add_recipe(depression_recipe)
+
+knn = nearest_neighbor(neighbors = tune()) %>%
+  set_mode("classification") %>%
+  set_engine('kknn')
+
+knn_wf = workflow() %>%
+  add_model(knn) %>%
+  add_recipe(depression_recipe)
+
+forest = rand_forest(mtry=tune(),
+                     trees=tune(),
+                     min_n=tune()) %>%
+  set_engine('ranger', importance='impurity') %>% set_mode('classification')
+
+forest_wf = workflow() %>%
+  add_model(forest) %>%
+  add_recipe(depression_recipe)
+
+svm = svm_rbf(cost=tune()) %>%
+  set_mode('classification') %>%
+  set_engine('kernlab')
+
+svm_wf = workflow() %>%
+  add_model(svm) %>%
+  add_recipe(depression_recipe)
+
+```
+
+### Tuning Models
+
+- The next step in the process is to set up grids for the models that need hyperparameter tuning and then run the actual tuning process. Setting up the grids using `grid_regular` can be thought of giving R a range of possible hyperparameter combinations and specifying the number of different values I want to try for each hyperparameter. For a model such as Random Forest, since we are working with 3 hyperparameters which I will specify using 5 levels for each, we need to train 125 total models to execute this tuning process! That does not even consider the fact that for each of these models we will be training between 100-500 trees! No wonder the process can take so long. This is one of the reasons that I was careful to specify only 5 folds for the training process previously, so that I don't have to wait hours to tune my model. This also applies to the Gradient Boosted Trees model. 
+
+- Once the grid is set up by specifying a range for each hyperparameter within which R will try equally spaced values, we actually tune the models using `tune_grid`. This function essentially uses the grid that I have provided previously along with the folds that we specified previously from our training set to evaluate the performance of each of the 125 models (in the case of random forest). It uses the previously created `workflow` object which contains the model and the preprocessor and the training folds that we made as resamples for the workflow to be fitted within. Finally, it uses the grid that we provided to try different hyperparameter values. 
+
+- The other models will undergo a similar process but should take less time since the elastic net regression requires only 2 hyperparameters, and KNN & SVM only require 1 hyperparameter. 
+
+- Another important aspect of the model tuning is choosing reasonable ranges to try for the hyperparameters. For certain models like the K-Nearest Neighbors, the ideal value for the `neighbors` hyperparameter ranges greatly based on the size of the dataset. Since we have almost 28000 observations in the original data set and over 21000 in the training set, it can be reasonable to use up to 100 neighboring data points for the model to perform its classification task for each data point. However, we must be careful not to overfit our data, so we will choose a range of 10 to 100 with 5 levels for the neighbors hyperparameter. 
+
+#### Creating Grids
+
+```{r}
+forest_grid = grid_regular(mtry(range=c(1,30)),
+                           trees(range=c(100,500)),
+                           min_n(range=c(5,25)),
+                           levels=5)
+boosted_grid = grid_regular(mtry(range=c(1,30)),
+                                 trees(range=c(100,500)),
+                                 learn_rate(range=c(-10,-1)),
+                                 levels=5)
+
+elastic_grid = grid_regular(penalty(range=c(0,3), trans=identity_trans()),
+                            mixture(range=c(0,1)), levels=10)
+
+knn_grid = grid_regular(neighbors(range=c(10,100)), levels=5)
+
+svm_grid = grid_regular(cost(range=c(-5,5)), levels=10)
+```
+
+#### Tuning Tree Models
+
+```{r, eval=FALSE}
+forest_tune = tune_grid(object = forest_wf,
+                        resample=depression_folds,
+                        grid=forest_grid)
+
+save(forest_tune, file='forest_tune_final.rda')
+
+boosted_tune = tune_grid(object = boosted_wf,
+                         resample=depression_folds,
+                         grid=boosted_grid)
+save(boosted_tune, file='boosted_tune_final.rda')
+```
+
+- Wow! It took a while to tune the decision tree models but we were able to get it done. I will save the results of this tuning process to a different file and then load it back later so that we don't have to run the whole process again. 
+
+- Our elastic net regression and KNN tuning processes also took much longer than expected, most likely due to the massive size of our training set. We will need to execute a similar process here of saving the tuning results to a separate file and loading them back later. As we tune our models, we will save them to an .rda file in our working directory. Soon, we will load all these models back into our environment so we can analyze their performance across hyperparameter configurations. 
+
+```{r, eval=FALSE}
+elastic_tune = tune_grid(object = elastic_wf, 
+                         resample=depression_folds,
+                         grid=elastic_grid)
+
+save(elastic_tune, file='elastic_tune_final.rda')
+
+knn_tune = tune_grid(object = knn_wf, 
+                     resample=depression_folds, 
+                     grid=knn_grid)
+
+save(knn_tune, file='knn_tune_final.rda')
+
+svm_tune = tune_grid(object = svm_wf,
+                     resample=depression_folds,
+                     grid_svm_grid)
+
+save(svm_tune, file='svm_tune_final.rda')
+
+```
+
+```{r}
+load(file='forest_tune_final.rda')
+load(file='elastic_tune_final.rda')
+load(file='knn_tune_final.rda')
+load(file='svm_tune_final.rda')
+load(file='boosted_tune_final.rda')
+```
+
+
+- We will now use the `autoplot()` function to visualize the performance of our models based on different combinations of their respective hyperparameters. This function is useful in our analysis to use visualization first to understand the general trend of our model performances, and later we can use the `show_best()` function to extract the best performing models on our training set based on AUC_ROC score. 
+
+- An important factor to note here that applies generally to our overall analysis is that just because a certain configuration of hyperparameter values performs well on the training set does not mean that it will generalize well to the data set as a whole. However, since we are using 5-fold cross validation to evaluate the performance of each hyperparameter configuration, we are minimizing the probability of overfitting on our training data set and memorizing relationships.
+
+- Here is a summary of our initial findings from our autoplot functions on the tuning processes.
+
+### Random Forest Tuning 
+
+```{r}
+autoplot(forest_tune)
+```
+
+- For our Random Forest model we find that the minimum number of observations to split a node `min_n` has an important affect on the performance of our models. As this hyperparameter increases, we see a corresponding increase in the performance of our training models. The best model performance seems to be found using the upper bound of the range that we provided to our grid, which is 25 minimum observations to make a further split in the trees. 
+- We find also that AUC_ROC score does not seem to change much with the # of trees that each Random Forest mode uses. However, there could be significant differences that we are simple not able to detect visually just using the `autoplot()` function
+-`mtry` seems to have the largest effect on AUC_ROC score as it varies. We can observe that the optimal # of predictors to randomly select and use to perform each split in the trees is around 10. We see a significant drop in model performance when we begin to use more than 10 randomly selected predictors. 
+
+### Boosted Tree Tuning
+
+```{r}
+autoplot(boosted_tune)
+```
+
+- In our Boosted Tree model we see that learning rate causes a rapid increase in AUC_ROC score as it increases from 0 but this effect plateaus soon after. It appears that the best learning rate to use for this model is 0.1, the upper bound of the range in our tuning grid.
+- What is interesting here that we do not observe in the tuning of our Random Forest model is that there is not a huge decrease in AUC-ROC score with as the # of randomly sampled predictors for each node split changes. This is an interesting finding as it appears that even with a single random predictor used at each node to make a split, we achieve impressive model performance. This is likely due to the fact that Boosted models train their trees sequentially, focusing on incremental improvements, unlike Random Forest models that create many trees at once.
+- Finally, wee observe that for the best combination of `mtry` and `learn_rate` it does not matter very much whether we use 100 trees or 500. There does not seem to be a notable difference in model performance based on this hyperparameter.
+
+### Elastic Net Tuning
+
+```{r}
+autoplot(elastic_tune)
+```
+
+- We have some really interesting findings in our autoplot for the tuning performed on the elastic net regression. it turns out that the best performing models based on AUC_ROC score have a regularization (`penalty`) value of 0. This means that no regularization is actually best for these models, and it doesn't even matter what value of mixture we use, since we are not performing any regularization to begin with. An Elastic Net Regression model that uses penalty 0 is actually simply a logistic regression model. This is a very interesting finding and hearkens us back to an important principle in Machine Learning and Statistical Analysis, which is that more complex models do not always perform better. Sometimes a simple model is the way to go! We may oftentimes attempt to create incredibly complex Support Vector Machines and Tree-Based Models when a simple linear/logistic regression would have fit the data best. Simplicity is a great virtue!
+
+### KNN Tuning
+
+```{r}
+autoplot(knn_tune)
+```
+
+- Our autoplot for the K-Nearest Neighbors model shows us a steady increase in model performance as the # of neighbors increases. Again, this goes back to the fact that with such a large data set it is viable to use a lot of nearby data points to make an educated classification decision with our model. However, we do see a general plateau in AUC-ROC score and accuracy as we reach 70 neighbors. Anything more than 100 neighbors would likely not contribute to a significant increase in model performance. A value of 100 for the neighbors parameter seems best for this model.
+
+### SVM Tuning
+
+```{r}
+autoplot(svm_tune) 
+```
+
+- Finally, our SVM model does not show a huge difference in AUC-ROC score across the different values of the cost hyperparameter. Although the line graph seems to vary greatly in the AUC-ROC score plot, we are only working on a scale of 0.84 to 0.87. Nevertheless, the best performing model with an AUC-ROC score of 0.87 seems to be attained using a cost parameter of around 0.125. 
+
+## Selecting Best Model Parameters
+
+- We will now proceed with our model creations by specifically selecting the best hyperparameter configurations for each of our tuned models. We can do this using the `select_best` function and specifying within this function that we want to use the AUC-ROC score as the metric to select the best configurations. We will also use the `show_best` function to see the best performing models and their respective hyperparameter configurations
+
+```{r}
+show_best(forest_tune, metric='roc_auc')
+best_forest = select_best(forest_tune, metric='roc_auc')
+
+show_best(boosted_tune, metric='roc_auc')
+best_boosted = select_best(boosted_tune, metric='roc_auc')
+
+show_best(elastic_tune, metric='roc_auc')
+best_elastic = select_best(elastic_tune, metric='roc_auc')
+
+show_best(knn_tune, metric='roc_auc')
+best_knn = select_best(knn_tune, metric='roc_auc')
+
+show_best(svm_tune, metric='roc_auc')
+best_svm = select_best(knn_tune, metric='roc_auc')
+```
+
+- Our best Random Forest model attained an AUC-ROC score of 0.866 on the training data using an `mtry` of 8, `trees` of 400, and `min_n` of 25. 
+
+- Our best Boosted Tree model attained an AUC-ROC score of 0.874 on the training data using an `mtry` of 1, `trees` of 500, and `learn_rate` of 0.1
+
+- Our best Elastic Net Regression model attained an AUC-ROC score of 0.874 on the training data using a `mixture` of 0.111 and a `penalty` of 0. However, as noted before, if the penalty is 0 the value of mixture does not matter at all since we are not performing any regulariztion in the model. Any value of `mixture` here would still correspond to simple Logistic Regression since `penalty` is 0.
+
+- Our best KNN model attained an AUC-ROC score of 0.854 on the training data using a `neighbors` value of 100. 
+
+- Our best SVM model attained an AUC-ROC score of 0.871 on the training data using a `cost` value of 0.114. 
+
+- Overall our models have done a great job so far on the training data! They have all achieved an AUC_ROC score of over 0.85. However, we should not get too excited here, as we still have not touched our testing data at all. 
+
+### Evaluating Non-Tuned Models
+
+- Before we select our 2 best models and proceed with evaluating their performances on the testing data set, we will need to also evaluate the performance of the models that did not require any tuning. Therefore, we will proceed now with fitting those 2 models and also evaluating their performance on the training data set as we have done here with the models that required hyperparameter tuning.
+
+```{r, warning=FALSE}
+lda_fit_folds = fit_resamples(lda_wf, depression_folds)
+collect_metrics(lda_fit_folds)
+
+log_fit_folds = fit_resamples(log_wf, depression_folds)
+collect_metrics(log_fit_folds)
+```
+
+- Our LDA model achieves an AUC-ROC score of 0.874 on the training data and our Logistic Regression model also achieves an AUC-ROC score of 0.874. This is unsurpising, as we mentioned before that our Elastic Net Regression model earlier turned into a Logistic Regression model using a `penalty` hyperparameter value of 0. Hereafter, we will collapse our Elastic Net Regression model into our Logistic Regression model as they are identical. 
+
+- Overall, we have an interesting tie between our best performing models. Both LDA, Logistic Regression, and our Boosted Tree model achieve an AUC-ROC score of 0.874 on the training data. I am suspicious that the LDA model created a model that is very similar to the Logistic Regression, as they achieved exactly the same accuracy and brier_score as well. I am not exactly sure why this might be the case, but my guess is that they have also collapsed into a nearly identical model. Because of this, I will move forward with my 2 best models as the Logistic Regression and the Boosted Tree model. This gives me the best chance of performing well on the testing data, because I will have 2 high performing models that are also diverse in their approach towards prediction!
+
+### Fitting Finalized Models
+
+- As mentioned before, I will only fit my two best performing models, the Logistic Regression and the Boosted Tree model. This will involve finalizing the workflow for the Boosted model by updating it with the best hyperparameter configuration, which was derived from our grid tuning process, before I can fit it to my full training data set. This process is not necessary for the Logistic Regression model and I can immediately fit it to my training set without any intermediary steps
+
+```{r}
+final_boosted_wf = finalize_workflow(boosted_wf, best_boosted)
+boosted_fit = fit(final_boosted_wf, depression_train)
+log_fit = fit(log_wf, depression_train)
+```
+
+- I am interested now in understanding which predictor variables were most important in making classification decisions. As mentioned earlier throughout this analysis, I have made many guesses on which variables would be of highest important, such as sleep habits, dietary habits, and academic pressure. Since the Boosted Tree model automatically stores variable importance information with the `xgboost` package, we are able to quite easily perform this analysis. 
+
+```{r}
+boosted_fit %>% extract_fit_parsnip() %>%
+  vip()
+```
+
+- Score!! I was right about `academic_pressure` being one of the most important predictor variables to decide if a student will be depressed or not. The other important covariates that we can observe here are `financial_stress`, `dietary_habits`, `age`, and `work_study hours`. Surprisingly, `sleep_duration` here does not show up as a very important predictor. This is truly very fascinating to me as it appeared in my exploratory data analysis step that there was a huge proportional difference in depression based on `sleep_duration`. Oh well, I am not entirely disappointed since we see so many interesting effects here! These variables shown here are the most important in making decisions in our Boosted tree model, not the Logistic Regression model.
+
+- Another surprising aspect of this plot is that `age` was an important predictor in making classification decisions in the Boosted tree model. I did not anticipate age being an important predictor at all throughout this analysis, and did not include it in any of my exploratory data analysis. I am grateful that these models are more intuitive than myself in figuring out which predictors are the most important! I would have easily missed this effect otherwise.
+
+- Out of sheer curiosity, I would like to understand the effect of age on depression prevalence among these students. I will use EDA again to visualize what is going on here. 
+
+```{r}
+depression_train %>% ggplot(aes(x=age, y=depression, fill=depression)) + geom_boxplot()
+```
+
+- It appears that younger students tend to be depressed more than older students in this data. Most of the depressed students seem to be in their early to mid 20's while most of the non-depressed students seem to be in their mid to late 20's. This is an interesting finding that I will discuss in more detail later on in this analysis, but my initial reaction to this is that it fits with our overall narrative that depression is becoming a more prevalent issue among the newer generations of students.
+
+### Evaluating Models on Testing Data
+
+- Let us now get back to the primary track of our analysis, and evaluate how well our models perform on the testing data. Again, this is the decisive moment that we have all been eagerly waiting for. It is easy for any model to perform well on training data. It can easily adapt to the various relationships that exist in that training set and falsely appear to be very impressive and insightful in its understanding of the data set. However, the true test of a model's actual usefulness is how well it can perform on a completely novel, unseen set of data, such as the testing data that we have not touched at all throughout this analysis. Let us see if our models are up to the task of taking on this formidable opponent! 
+
+- Here is a funny meme to lighten the mode before things could potentially get ugly.
+
+![''](overfitting.jpg)
+
+```{r}
+final_boosted = augment(boosted_fit, depression_test) %>%
+   dplyr::select(depression, starts_with('.pred')) 
+roc_auc(final_boosted, truth=depression, .pred_0)
+
+final_log = augment(log_fit, depression_test) %>%
+  dplyr::select(depression, starts_with('.pred'))
+roc_auc(final_log, truth=depression, .pred_0)
+```
+
+- Thank God! We achieved a AUC-ROC score of 0.868 on our testing data set using our Boosted Tree models. We did not overfit our training data set and successfully created a worthwhile model!
+
+- What is even more celebratory is that our Logistic Regression performed just as well as the Boosted model, it is truly great when we can use a much simpler model to achieve the same level of performance. If we can take a moment to hearken back to the beginning of this course, one of our primary discussions was trade-off between model complexity and model interpretability. Generally, the more complex a model becomes in its prediction process, the more of a 'black box' it turns into, and the less interpretable it becomes. This makes it difficult to understand the relationships between predictors and the outcome variable. If we can build a simple, interpretable model that performs just as well as the more complex ones, we have achieved a great feat! 
+
+- Let us also now create some AUC-ROC curves so that we can also visualize these impressive performances.
+
+```{r}
+roc_curve(final_boosted, truth=depression, .pred_0) %>% autoplot()
+roc_curve(final_log, truth=depression, .pred_0) %>% autoplot()
+```
+
+- Both of those curves look pretty great. Although there is always room for improvement, it is not always possible to get a curve that perfectly tucks back into that top left corner. Considering the complexity and sheer size of this data set, I would say our models did a pretty good job with their classification tasks.  
+
+- Finally let us also visualize our model performances using Heatmap Confusion Matrices. This will help give us a more in-depth understanding of how our models performed with respect to False Negative and False Positive predictions. However, since our AUC_ROC scores were quite high, we don't anticipate that these confusion matrices will show us anything too alarming.
+
+```{r}
+conf_mat(final_boosted, truth=depression, .pred_class) %>% autoplot(type='heatmap')
+conf_mat(final_log, truth=depression, .pred_class) %>% autoplot(type='heatmap')
+```
+
+- We can observe from our confusion matrices that both of our models had an alarming amount of false positive observations. Our Boosted model classified 738 non-depressed individuals as depressed and our Logistic Regression model classified 727 non-depressed individuals as depressed. This is quite disappointing to see, but again in the large scheme of things, where we have over 6000 observations to predict in our testing data set, these mistakes clearly did not have a hugely detrimental affect on the AUC-ROC scores. 0.867 and 0.868 are very impressive scores for testing data! Things can't always be perfect, although that is what we are chasing as excited data scientists!
+
+```{r}
+accuracy(final_log, truth=depression, .pred_class)
+accuracy(final_boosted, truth=depression, .pred_class)
+```
+
+- For the sake of simplicity, which seems to be a prevalent theme throughout this analysis, I simply wanted to display the accuracy of each model. At this point, after all the thorough use of AUC-ROC scores and complex models, accuracy seems like a caveman metric. However, since overall our Logistic Model performed best, maybe simpler is better. The accuracy of our Logistic Regression on the testing data was 0.795 and the accuracy of our Boosted Model on the testing data was 0.796. 
+
+# Conclusion & Interpretation
+
+- We have finally come to the end of our humble analysis of student depression. There are many interesting things that we have learned throughout this study. First, I want to again emphasize the beauty of simplicity in Statistics and Machine Learning. Many times, we can begin to think with narrow mindedness and assume that more complex models will always lead to better outcomes. We have clearly dispelled that fallacy today with our analysis. After all the complex hyperparameter tuning, model fitting, and sheer toll taken on my laptop by fitting Random Forest, Boosted Tree, Support Vector Machine, and Elastic Net Regressions, we have realized in humility that the simple Logistic Regression was the best! What an incredible finding that reminds us of the true beauty that is hidden in the age-old statistical models. They might not be as fancy as the Machine Learning models we have explored throughout this analysis, but they are still around for a reason. Nevertheless, the use of the Boosted Tree model was still incredibly important in informing us of a key aspect of this study: variable importance. 
+
+- Any statistical analysis is incomplete without a sufficient interpretation of the findings. It is not enough to simply run a myriad of ML models even if they perform well (as ours did!). The goal of this analysis to begin with was to accurately understand the relationship between certain aspects of student life and the onset of depression among this hurting demographic. We hoped to use this newfound understanding of these relationships to help students diagnose themselves with greater insight. Some of the factors that we identified as most important in classifying a student as 'high risk' for depression were academic pressure, financial stress, age work/study hours, and dietary habits.
+
+- The factor that was largely the most important in making splits in our Boosted tree model was the first dummy variable of the academic pressure variable, which corresponds to individuals with academic pressure = 1. This is an important finding that informs us that those students that felt the lowest level of academic pressure were much less likely to have an onset of depression. It is important for us to inform students to minimize the pressure they place upon themselves in respect to their academic life specifically in order to minimize the likelihood of negative mental health outcomes. The 5th level of the academic pressure variable was also very important in our model, informing us that both a high level of academic pressure and a low level of academic pressure can have huge effects on depression onset. 
+
+- Another factor that was very important in our model was the 5th level of the financial stress predictor. This refers to students that felt the most financial stress. It is important to inform students that lots of financial stress can be a likely way to experience an onset of depression. It is interesting that the highest level of financial stress is an important variable in this model, but the lowest level does not appear to be as prominent. We can interpret this by saying that a high level of financial stress is likely to lead students towards depression, while a low level of financial stress is not necessarily a protection against depression. 
+
+- The next variable that we found to be an important indicator of depression is work and study hours. It appears that if a student overburdens themselves with lots of studying combined with working a part-time job, it can greatly increase the likelihood of experiencing depression. This is an intuitive finding, as overwork is known to be an important cause of depression.
+
+- Finally, we can saw that the dietary habits variable seems to be an important factor to indicate depression in our model. Namely, it is the unhealthy level of the dietary habits covariate that is the most alarming. We can interpret this by saying that if a student is healthy, it does not have as great an affect on preventing depression than an unhealthy diet causing depression. It is important for students to maintain good dietary habits to balance academic and financial stress!
+
+- We have come to some very interesting findings from our exploration of student depression and build some Machine Learning models that are truly quite powerful in making accurate predictions about depression prevalence based on a variety of lifestyle/academic factors. In future analyses, I hope that researchers will be able to identify other covariates that could be important indicators in an analysis of student depression. These could include factors such as social habits (# of close friends or belonging to a church community), exercise habits, and technology habits. I also would hope that researchers find more in-depth ways to measure mental health symptoms instead of just a binary 0/1 indication of depression in an individual. Nevertheless, I thought our analysis was incredibly insightful and taught us some interesting things about Statistics, Machine Learning, and Student Depression.  
+
+Here is a beautiful landscape so we can end on a hopeful note:
+
+![''](landscape2.jpg)
